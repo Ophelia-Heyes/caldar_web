@@ -4,6 +4,7 @@
   "description": "sockets example",
   "main": "server.js",
   "scripts": {
+    "build" : "webpack",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js"
   },
@@ -16,6 +17,7 @@
   "license": "ISC",
   "dependencies": {
     "express": "^4.21.1",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "webpack": "^5.96.1"
   }
 }
