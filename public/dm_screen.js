@@ -1,9 +1,45 @@
 var socket;
 socket = io.connect();
+  //socket = io.connect(process.env.PORT || 3000);
+  //socket.on('mouse', newDrawing);
 
-point = [];
+if(window.location.pathname=="/dm_screen"){
+  
+  //allow dm tool
+}
 
+numPerRow = 10;
+points = new Array(100).fill(null);
 
+function broadcastPoints(){
+  socket.emit('points', points);
+}
+
+function onRecievePointsFromServer(receivedPoints){
+  console.log(receivedPoints);
+  if (receivedPoints[0]!=null){
+    console.log('points from server!!');
+  for (let index = 0; index < points.length; index++) {
+    console.log("going through points");
+    let p = receivedPoints[index];
+    points[index] = createVector(p.x, p.y);
+    console.log(receivedPoints[index].x);
+    }
+  }
+  else{
+    generatePointGrid();
+    broadcastPoints();
+  }
+}
+
+function checkPoints(){
+  if (points[0]==null){
+    // try get points from server:
+    console.log("requesting points");
+    socket.emit("requestPoints");
+    socket.on("requestPoints", onRecievePointsFromServer);
+  }
+}
 
 function setup() {
   createCanvas(400, 400);
@@ -12,8 +48,9 @@ function setup() {
   console.log(document.cookie);
   checkCookie();
 
-  //socket = io.connect(process.env.PORT || 3000);
-  //socket.on('mouse', newDrawing);
+  // bit we care about
+  checkPoints();
+  socket.on('points', onRecievePointsFromServer);
 }
 
 function newText(){
@@ -25,7 +62,7 @@ function newText(){
 }
 
 function mouseDragged(){
-  console.log(mouseX + ',' + mouseY);
+  //console.log(mouseX + ',' + mouseY);
   ellipse(mouseX, mouseY, 36, 36);
   var data = {
     x:mouseX,
@@ -35,8 +72,15 @@ function mouseDragged(){
 }
 
 function draw() {
+  background(50);
   noStroke();
   fill(255);
+  if (points[0]!=null){
+    for (let index = 0; index < points.length; index++) {
+      const point = points[index];
+      circle(point.x*width, point.y*height, 10);
+    }
+  }
 }
 
 function newDrawing(data) {
@@ -57,6 +101,17 @@ function checkCookie(){
     modal.isVisible = true;
   }
 }
+
+function generatePointGrid(){
+  // initialize point grid
+  let numPoints = numPerRow*numPerRow;
+  for(let i = 0; i<numPoints; i++)
+    {
+      x = ((i%numPerRow)/(numPerRow-1));
+      y = (Math.floor(i/numPerRow)/(numPerRow-1));
+      points[i] = (createVector(x, y));
+    }    
+  }
 
 function getCookie(cookieName) {
   let name = cookieName + "=";

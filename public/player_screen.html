@@ -6,16 +6,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <title>Caldar Web</title>
-
-  <link rel="stylesheet" type="text/css" href="style.css">
-  <link rel="stylesheet" href="https://use.typekit.net/jej6wik.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/p5.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/addons/p5.sound.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
-  <script src="libraries/p5.min.js"></script>
-  <script src="libraries/p5.sound.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/BarneyWhiteman/p5.filterShader@0.0.3/p5.filterShader.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <meta charset="utf-8" />
+  <script src="https://unpkg.com/delaunator@5.0.0/delaunator.min.js"></script>
 </head>
 
 <body>
-  <div class="modal-wrapper">
+  <!-- <div class="modal-wrapper">
     <div class="modal-background"></div>
     <div class="modal-border">
       <div class="modal">
@@ -24,8 +25,16 @@
         <button id="modal-button" class="modal-button">OK</button>
       </div>
     </div>
+  </div> -->
+  <div class="container" id="modal">
+    <h2 id="sprite-modal-title" class="sprite-modal-title">Choose Your Tokens</h1>
+    <table class="image-container">
+      <tr id="image-container">
+    </table>
+    <button id="modal-button" class="modal-button" onclick="submitChoices()">OK</button>
   </div>
-  <script src="player_screen.js"></script>
+  <script src="utilities.js"></script>
+  <script src="sketch.js"></script>
 </body>
 
 </html>
