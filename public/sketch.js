@@ -1,3 +1,10 @@
+window.onerror = function(message, url, lineNumber) { 
+  console.log("TEST!"); 
+  sendErrorsToServer(message);
+  //save error and send to server for example.
+  return true;
+}, true;  
+
 // TOOLTIPS
 // keyboard controls:
 // P to move the battle map around
@@ -12,6 +19,9 @@
 
 // toggle for testing
 voronoiShaderActive = true;
+effectsShadingActive = true;
+
+let displaceColors;
 
 // average fps
 averageFps = 0;
@@ -41,6 +51,8 @@ let effectPoint = [0.85, 0.35],
   font;
 const activeEffects = [];
 
+initialSpriteRequestReplied = false;
+
 class Sprite {
   constructor(name, pos, attachPoint, image) {
     this.name = name;
@@ -54,7 +66,7 @@ class Sprite {
 numPerRow = 15;
 const numPoints = numPerRow * numPerRow,
   // flattened list of vec3 for shader
-  rawPts = Array(numPoints * 3).fill(0),
+  rawPts = Array(numPoints * 2).fill(0),
   // list of vec2
   points = new Array(numPoints).fill(null);
 
@@ -77,9 +89,9 @@ class Mode {
     this.toggle = false;
   }
   toggleMode() {
-    console.log(this.name);
+    // console.log(this.name);
     this.toggle = !this.toggle;
-    console.log(this.toggle);
+    // console.log(this.toggle);
   }
 }
 
@@ -115,6 +127,7 @@ activeRelax = null;
 sceneTransStart = 0.;
 sceneTransition = false;
 sceneTransDirection = false;
+sceneTransLerpTime = 0.;
 
 // turn off right click context menu within canvas
 document.oncontextmenu = function () {
@@ -146,7 +159,7 @@ async function getImages() {
     // files is now an array of file names, do what you want with that (create <img> tags, etc.)
     return files.json();
   } catch (err) {
-    console.error(err)
+    // console.error(err)
   }
 }
 
@@ -169,6 +182,7 @@ function createImagePaths(imageNames) {
     }
     sprites.push(new Sprite(imagePath, createVector(x, y), id, loadImage(imagePath)));
   }
+  socket.emit("requestSprites");
 }
 
 function createSprites() {
@@ -177,15 +191,40 @@ function createSprites() {
 
 
 function setup() {
-  createCanvas(500, 500, WEBGL);
+  createCanvas(400, 400, WEBGL);
   textFont(font);
   textSize(12);
   handleCreateUI();
 
+  displaceColors = createFilterShader(`precision highp float;
+
+uniform sampler2D tex0;
+varying vec2 vTexCoord;
+
+vec2 zoom(vec2 coord, float amount) {
+  vec2 relativeToCenter = coord - 0.5;
+  relativeToCenter /= amount; // Zoom in
+  return relativeToCenter + 0.5; // Put back into absolute coordinates
+}
+
+void main() {
+  // Get each color channel using coordinates with different amounts
+  // of zooms to displace the colors slightly
+  gl_FragColor = vec4(
+    texture2D(tex0, vTexCoord).r,
+    texture2D(tex0, zoom(vTexCoord, 1.05)).g,
+    texture2D(tex0, zoom(vTexCoord, 1.1)).b,
+    texture2D(tex0, vTexCoord).a
+  );
+}`);
+
   // bit we care about
   checkPoints();
-  socket.on('points', onRecievePointsFromServer);
-  socket.on('sprites', onRecieveSpritePositionUpdates);
+  socket.on('points', onReceivePointsFromServer);
+  socket.on('sprites', onReceiveSpritePositionUpdates);
+  socket.on('effect', onReceiveEffect);
+  socket.on('sceneTransition', onRecieveSceneTransition);
+  socket.emit('requestTransition');
 
   createSprites();
 
@@ -204,9 +243,10 @@ function draw() {
   // update shader variables
   //enemyPos = sprites[0].pos;
   // temp fix
-  enemyPos = createVector(0, 0);
-  voronoiShader.setUniform("effectCenter", [(enemyPos.x / width) + .5,
-  (enemyPos.y / height) + .5]);
+  enemyPos = createVector(0.5, 0.5);
+  voronoiShader.setUniform("effectCenter", [.5, .5]);
+  //voronoiShader.setUniform("effectCenter", [(enemyPos.x / width) + .5,
+  //(enemyPos.y / height) + .5]);
   voronoiShader.setUniform("background", backgroundImage);
   voronoiShader.setUniform("foreground", foregroundImage);
   voronoiShader.setUniform("points", rawPts);
@@ -236,8 +276,8 @@ function draw() {
 
   // draw points
   for (let i = 0; i < numPoints; i++) {
-    circle((rawPts[i * 3] * width) - width / 2,
-      (rawPts[i * 3 + 1] * width) - width / 2, 3);
+    circle((rawPts[i * 2] * width) - width / 2,
+      (rawPts[i * 2 + 1] * width) - width / 2, 3);
   }
 
   // draw sprites
@@ -249,35 +289,26 @@ function draw() {
     image(p.image, p.pos.x, p.pos.y, width / 10, width / 10);
   }
 
-  // // filters
-  // electroShader.setUniform("effectPos", [(enemyPos.x / width),
-  // (enemyPos.y / height), 0.75]);
-  // filterShader(electroShader);
-  // if (activeEffects.length > 0) {
-  //   glitchShader.setUniform("noise", getNoiseValue());
-  //   filterShader(glitchShader);
-  // }
+  if (effectsShadingActive) {
+    // filters
+    electroShader.setUniform("effectPos", [(enemyPos.x / width),
+    (enemyPos.y / height), 0.75]);
+    filterShader(electroShader);
+    if (activeEffects.length > 0) {
+      glitchShader.setUniform("noise", getNoiseValue());
+      filterShader(glitchShader);
+    }
+  }
 
+ // filter(displaceColors);
 
   // display FPS
 
-// averageFps = 0;
-// frameTimes = [];
-// timeCounter = 0;
+  // averageFps = 0;
+  // frameTimes = [];
+  // timeCounter = 0;
 
-  frameTimes.push(deltaTime);
-  if (millis()-timeCounter>15000){
-    averageFps = frameTimes.reduce((accumulator, currentValue) => accumulator + currentValue, 0)/frameTimes.length;
-    frameTimes = [];
-    timeCounter = millis();
-  }
-
-  textSize(16);
-  if (averageFps>0){
-  text((1000/averageFps).toFixed(1), 15 - width / 2, 30 - height / 2);}
-  else{
-    text((1000/deltaTime).toFixed(1), 15 - width / 2, 30 - height / 2);
-  }
+  displayFPS();
 
 
   updateModes();
@@ -286,28 +317,29 @@ function draw() {
 
 function keyPressed() {
   // any user modes
-  switch (key){
-  case "m":
-    measureMode = !measureMode;
-    console.log("m");
-    measureStartPt = (measureMode) ? measureStartPt : null;
-    break;
+  switch (key) {
+    case "m":
+      measureMode = !measureMode;
+      // console.log("m");
+      measureStartPt = (measureMode) ? measureStartPt : null;
+      break;
     default:
   }
   // DM modes
   if (userIsDM) {
-    console.log("on dm screen, allowing modes");
+    // console.log("on dm screen, allowing modes");
     switch (key) {
       // test case
       case "b":
         broadcastPoints();
       case "q":
         // handle opening rift
+        sceneTransDirection = !sceneTransDirection;
         if (sceneTransition == false) {
-          sceneTransDirection = !sceneTransDirection;
           sceneTransition = true;
           sceneTransStart = millis();
         }
+        broadcastSceneTransition();
         break;
       case "k":
         modes.killMode.toggle = !modes.killMode.toggle;
@@ -320,14 +352,14 @@ function keyPressed() {
         moveModeActive = !moveModeActive;
         break;
       case "r":
-        activeEffects.push(new Effect(points, resetEffect, [0, 0], 1, 2, easeInSine));
+        pushToActiveEffects(new Effect(points, resetEffect, [0, 0], 1, 2, easeInSine));
         break;
       case "h":
         // shift between square grid and hex grid
         gridIsHex = !gridIsHex;
         let sign = (gridIsHex) ? 1 : -1;
-        // console.log(sign);
-        activeEffects.push(new Effect(points, squareToHexEffect, [0, 0], sign, 2, easeInSine));
+        // // console.log(sign);
+        pushToActiveEffects(new Effect(points, squareToHexEffect, [0, 0], sign, 2, easeInSine));
         //                          (initPts, effect, center, magnitude, endTime, easeFunction = null)
         break;
       case "l":
@@ -335,12 +367,12 @@ function keyPressed() {
         break;
       case "f":
         // randomize or "fracture" grid
-        activeEffects.push(new Effect(points, noiseEffect, [0, 0], .1, 2, easeInSine));
+        pushToActiveEffects(new Effect(points, noiseEffect, [0, 0], .1, 2, easeInSine));
         break;
       case "a":
         // "attack mode"
-        // console.log([sprites[0].pos.x/width+1, sprites[0].pos.y/height+1]);
-        activeEffects.push(new Effect(points, rippleEffect, [sprites[0].pos.x / width + .5, sprites[0].pos.y / height + .5], 0.2, 10, 1, easeInSine));
+        // // console.log([sprites[0].pos.x/width+1, sprites[0].pos.y/height+1]);
+        pushToActiveEffects(new Effect(points, rippleEffect, [sprites[0].pos.x / width + .5, sprites[0].pos.y / height + .5], 0.2, 10, 1, easeInSine));
         break;
       case "c":
         if (activeRelax != null) {
@@ -350,7 +382,7 @@ function keyPressed() {
         }
         if (activeRelax == null) {
           activeRelax = new Effect(points, relaxEffect, [0, 0], 1, .25);
-          activeEffects.push(activeRelax);
+          pushToActiveEffects(activeRelax);
         }
         break;
       default:
@@ -361,12 +393,14 @@ function keyPressed() {
 }
 
 function handleSceneTransition() {
-  let lerpTime = (millis() - sceneTransStart) / 10000;
-  if (lerpTime >= 1) {
+  // allows for hotswapping direction while lerping
+  sceneTransLerpTime += (sceneTransDirection) ? deltaTime / 5000 : -deltaTime / 5000;
+  let lerpCheck = (sceneTransDirection) ? sceneTransLerpTime >= 1 : sceneTransLerpTime <= 0;
+  if (lerpCheck) {
     sceneTransition = false;
-    lerpTime = 1;
+    sceneTransLerpTime = sceneTransDirection;
   }
-  let transMag = (sceneTransDirection) ? lerpTime : 1 - lerpTime;
+  let transMag = sceneTransLerpTime;
   voronoiShader.setUniform("transition", transMag);
   electroShader.setUniform("electroIntensity", transMag)
 }
@@ -379,7 +413,7 @@ function updateModes() {
 
 function updateMeasureMode() {
   if (measureStartPt != null) {
-    // console.log('yes');
+    // // console.log('yes');
     if (measureActive) {
       measureEndPt = mouseNearPoint();
     }
@@ -391,19 +425,19 @@ function updateMeasureMode() {
       p1 = parseInt(path[i]);
       p2 = parseInt(path[i + 1]);
       noStroke();
-      circle((rawPts[p1 * 3] - 0.5) * width, (rawPts[p1 * 3 + 1] - 0.5) * height, 10);
-      text(i * 5 + " ft", (rawPts[p1 * 3] - 0.5) * width + 15, (rawPts[p1 * 3 + 1] - 0.5) * height + 15);
+      circle((rawPts[p1 * 2] - 0.5) * width, (rawPts[p1 * 2 + 1] - 0.5) * height, 10);
+      text(i * 5 + " ft", (rawPts[p1 * 2] - 0.5) * width + 15, (rawPts[p1 * 2 + 1] - 0.5) * height + 15);
       stroke(0, 255, 255);
       strokeWeight(2);
       if (path.length - i != 1) {
-        line((rawPts[p1 * 3] - 0.5) * width,
-          (rawPts[p1 * 3 + 1] - 0.5) * height,
-          (rawPts[p2 * 3] - 0.5) * width,
-          (rawPts[p2 * 3 + 1] - 0.5) * height
+        line((rawPts[p1 * 2] - 0.5) * width,
+          (rawPts[p1 * 2 + 1] - 0.5) * height,
+          (rawPts[p2 * 2] - 0.5) * width,
+          (rawPts[p2 * 2 + 1] - 0.5) * height
         );
       }
     }
-    circle((rawPts[measureEndPt * 3] - 0.5) * width, (rawPts[measureEndPt * 3 + 1] - 0.5) * height, 15);
+    circle((rawPts[measureEndPt * 2] - 0.5) * width, (rawPts[measureEndPt * 2 + 1] - 0.5) * height, 15);
     // measurement text
     noStroke();
     textSize(16);
@@ -415,7 +449,7 @@ function mouseNearPoint() {
   let maxDist = 100000;
   let id = 0;
   for (let i = 0; i < numPoints; i++) {
-    let testD = dist(mouseX / width, mouseY / height, rawPts[i * 3], rawPts[i * 3 + 1]);
+    let testD = dist(mouseX / width, mouseY / height, rawPts[i * 2], rawPts[i * 2 + 1]);
     if (testD < maxDist) {
       maxDist = testD;
       id = i;
@@ -430,10 +464,10 @@ function updatePoints() {
     // set raw points to send to the shader
     for (let i = 0; i < points.length; i++) {
       p = points[i];
-      rawPts[i * 3] = p.x;
-      rawPts[(i * 3) + 1] = p.y;
+      rawPts[i * 2] = p.x;
+      rawPts[(i * 2) + 1] = p.y;
       // third term is for voronoi effects
-      rawPts[(i * 3) + 2] = p.z;
+      //rawPts[(i * 3) + 2] = p.z;
     }
   }
 }
@@ -444,7 +478,7 @@ function effectsManager() {
     warpedPts = points;
     // loop backwards, removing effects that have finished
     for (let i = activeEffects.length - 1; i >= 0; i--) {
-      // console.log("test!");
+      // // console.log("test!");
       if (activeEffects[i].isActive) {
         // do each effect
         warpedPts = activeEffects[i].update(warpedPts);
@@ -453,17 +487,42 @@ function effectsManager() {
         activeEffects.splice(i, 1);
       }
     }
-    if (activeEffects.length != 0) {
-      broadcastPoints();
-    }
+    // if (activeEffects.length != 0) {
+    //   broadcastPoints();
+    // }
     // reassign values of const array
     for (let i; i < points.length; i++) {
       points[i] = warpedPts[i];
     }
+    // if number of effects has gone to zero on this step,
+    //broadcast results to ensure every user has the same state
     if (activeEffects.length == 0) {
-      // broadcast position
+      // console.log(activeEffects.length);
+      broadcastPoints();
     }
   }
+}
+
+function pushToActiveEffects(effect) {
+  activeEffects.push(effect);
+  let easeFunction = effect.easeFunction ? effect.easeFunction.name : null;
+  sendEffect = {
+    effect: effect.effect.name,
+    center: effect.center,
+    magnitude: effect.magnitude,
+    endTime: effect.endTime / 1000,
+    falloff: effect.falloff,
+    easeFunction: easeFunction,
+    killOnComplete: effect.killOnComplete
+  };
+  socket.emit('effect', sendEffect);
+}
+
+function onReceiveEffect(effect) {
+  let reconstructedEffect = new Effect(points, window[effect.effect], effect.center,
+    effect.magnitude, effect.endTime, effect.falloff,
+    window[effect.easeFunction], effect.killOnComplete);
+  activeEffects.push(reconstructedEffect);
 }
 
 class Effect {
@@ -479,16 +538,16 @@ class Effect {
     this.lastTime = 0;
     this.falloff = falloff;
     this.killOnComplete = killOnComplete;
-    // console.log("started!");
+    // // console.log("started!");
   }
   update(curPts) {
     curPts = curPts;
     // percent finished constrained to a value 0-1
     let lerpTime = (millis() - this.startTime) / this.endTime;
 
-    //console.log(lerpTime);
+    //// console.log(lerpTime);
     if (lerpTime >= 1) {
-      // console.log("finished!");
+      // // console.log("finished!");
       lerpTime = 1;
       if (this.killOnComplete) {
         this.isActive = false;
@@ -716,7 +775,7 @@ function mousePressed() {
       if (measureActive) {
         measureStartPt = mouseNearPoint();
       }
-      console.log(measureActive);
+      // console.log(measureActive);
     }
     if (mouseButton == 'right') {
       measureStartPt = null;
@@ -781,7 +840,7 @@ function updateSpritePosition() {
     }
   }
   if (anyUpdated) {
-    console.log("updated!!!");
+    // console.log("updated!!!");
     sendSpritePositionUpdates();
   }
 }
@@ -798,22 +857,33 @@ function updateSpritePosition() {
 
 function sendSpritePositionUpdates() {
   // create new object based on sprite object that is more efficient for sharing
-  spriteUpdates = sprites.map(sprite => ({
-    name: sprite.name,
-    pos: [sprite.pos.x, sprite.pos.y],
-    attachPoint: sprite.attachPoint
-  }));
-  socket.emit('sprites', spriteUpdates);
+  if (initialSpriteRequestReplied) {
+    spriteUpdates = sprites.map(sprite => ({
+      name: sprite.name,
+      pos: [sprite.pos.x, sprite.pos.y],
+      attachPoint: sprite.attachPoint
+    }));
+    socket.emit('sprites', spriteUpdates);
+  }
 }
 
-function onRecieveSpritePositionUpdates(spriteUpdates) {
-  console.log("shouldn't recieve any updates on this side");
-  for (let index = 0; index < spriteUpdates.length; index++) {
-    let sprite = sprites[index];
-    let spriteUpdate = spriteUpdates[index];
-    sprite.pos.x = spriteUpdate.pos[0];
-    sprite.pos.y = spriteUpdate.pos[1];
-    sprite.attachPoint = spriteUpdate.attachPoint;
+function onReceiveSpritePositionUpdates(spriteUpdates) {
+  initialSpriteRequestReplied = true;
+  // console.log("shouldn't receive any updates on this side");
+  if (spriteUpdates !== null) {
+    // console.log("sprite updates:");
+    // console.log(spriteUpdates);
+    for (let index = 0; index < spriteUpdates.length; index++) {
+      let sprite = sprites[index];
+      let spriteUpdate = spriteUpdates[index];
+      sprite.pos.x = spriteUpdate.pos[0];
+      sprite.pos.y = spriteUpdate.pos[1];
+      sprite.attachPoint = spriteUpdate.attachPoint;
+    }
+  }
+  else {
+    // console.log("recieved null sprites, sending local sprites");
+    sendSpritePositionUpdates();
   }
 }
 
@@ -867,7 +937,7 @@ function handleStartMoveMode() {
     movePt = mouseNearPoint();
     moveEffect = new Effect(cloneVectorArray(points), movePointsEffect, [points[movePt].copy(),
     createVector(mouseX / width, mouseY / width)], 1, .5, .25, easeInSine, false);
-    activeEffects.push(moveEffect);
+    pushToActiveEffects(moveEffect);
   }
   if (mouseButton == 'right') {
     if (moveEffect != null) {
@@ -896,12 +966,12 @@ function handleReleaseMoveMode() {
 
 function handleStartLineMode() {
   if (mouseButton == 'left') {
-    console.log("started line!");
+    // console.log("started line!");
     lineEffect = new Effect(cloneVectorArray(points), lineAttractEffect,
       [createVector(mouseX / width, mouseY / height), createVector(mouseX / width, mouseY / height)],
       1., .5, .25, easeInSine, false);
-    activeEffects.push(lineEffect);
-    console.log(activeEffects);
+    pushToActiveEffects(lineEffect);
+    // console.log(activeEffects);
   }
   if (mouseButton == 'right') {
     if (lineEffect != null) {
@@ -949,7 +1019,7 @@ function handleCreateUI() {
   buttonDiv.class("flex-container");
   buttonDiv.style("display", "flex");
   buttonDiv.style("justify-content", "space-evenly");
-  //console.log(modesArray);
+  //// console.log(modesArray);
   for (let [index, value] of Object.entries(modes).entries()) {
     let mode = value[1];
     let button = createButton(mode.name);
@@ -965,7 +1035,7 @@ function handleCreateUI() {
 
 function handleReadFile(file) {
   data = file.data;
-  // console.log(data);
+  // // console.log(data);
   for (let i = 0; i < points.length; i++) {
     points[i].x = data.points[i].x;
     points[i].y = data.points[i].y;
@@ -993,7 +1063,7 @@ function broadcastPoints() {
   let compressedPts = compressPoints();
   socket.emit('points', compressedPts);
   totalBytesSent += getByteSize(compressedPts);
-  console.log("total kBs sent: "+totalBytesSent/1000);
+  // console.log("total kBs sent: " + totalBytesSent / 1000);
 }
 
 function getByteSize(obj) {
@@ -1002,39 +1072,39 @@ function getByteSize(obj) {
   return blob.size;
 }
 
-function compressPoints(){
+function compressPoints() {
   let compressedPts = [];
   for (let index = 0; index < points.length; index++) {
     let pt = points[index];
     compressedPts.push(pt.x);
     compressedPts.push(pt.y);
   }
-  //console.log(compressedPts.length);
+  //// console.log(compressedPts.length);
   return compressedPts;
 }
 
-function uncompressPoints(compressedPts){
+function uncompressPoints(compressedPts) {
   for (let index = 0; index < points.length; index++) {
-    let x = compressedPts[index*2];
-    let y = compressedPts[index*2+1];
-    points[index] = createVector(x,y);
+    let x = compressedPts[index * 2];
+    let y = compressedPts[index * 2 + 1];
+    points[index] = createVector(x, y);
   }
 }
 
-function onRecievePointsFromServer(receivedPoints) {
-  console.log(receivedPoints);
+function onReceivePointsFromServer(receivedPoints) {
+  // console.log(receivedPoints);
   if (!receivedPoints.some(el => el === null)) {
-    //console.log('points from server!!');
+    //// console.log('points from server!!');
     uncompressPoints(receivedPoints);
     // for (let index = 0; index < points.length; index++) {
-    //   // recieving raw points, so now we have to convert back
+    //   // receiving raw points, so now we have to convert back
     //   //let p = receivedPoints[index];
     //   // points[index] = createVector(p.x, p.y);
 
     // }
   }
   else {
-    console.log("recieved null, generating points");
+    // console.log("received null, generating points");
     generatePointGrid();
     broadcastPoints();
   }
@@ -1043,9 +1113,9 @@ function onRecievePointsFromServer(receivedPoints) {
 function checkPoints() {
   generatePointGrid();
   // try get points from server:
-  console.log("requesting points");
+  // console.log("requesting points");
   socket.emit("requestPoints");
-  socket.on("requestPoints", onRecievePointsFromServer);
+  socket.on("requestPoints", onReceivePointsFromServer);
 }
 
 function generatePointGrid() {
@@ -1060,18 +1130,18 @@ function generatePointGrid() {
 
 // html
 
-function displayImages(imageNames){
+function displayImages(imageNames) {
   imageNames = imageNames.filter(file => file.endsWith('.png'));
-  if (!userIsDM){
-    console.log("not dm");
-  for (let index = 0; index < imageNames.length; index++) {
-      createSpriteElement("images/sprites/player/"+imageNames[index]);
+  if (!userIsDM) {
+    // console.log("not dm");
+    for (let index = 0; index < imageNames.length; index++) {
+      createSpriteElement("images/sprites/player/" + imageNames[index]);
+    }
   }
 }
-}
 
-function createSpriteElement(imageName){
-  buttons[imageName]= false;
+function createSpriteElement(imageName) {
+  buttons[imageName] = false;
   let imageButtonParent = document.createElement("th");
   imageButtonParent.setAttribute("class", "image-button-parent");
   imageContainer.appendChild(imageButtonParent);
@@ -1091,21 +1161,75 @@ function createSpriteElement(imageName){
   image.setAttribute("class", "sprite");
 }
 
-function checkMark(button){
+function checkMark(button) {
   buttons[button.id] = button.checked;
-  console.log(button.id);
+  // console.log(button.id);
 }
 
-function submitChoices(){
+function submitChoices() {
   // submit which sprites the player has selected to control
   userControlled = [];
-  let index=0;
-    for (const [key, value] of Object.entries(buttons)) {
-    if (value){
+  let index = 0;
+  for (const [key, value] of Object.entries(buttons)) {
+    if (value) {
       userControlled.push(index);
     }
     index++;
   }
 
-  document.getElementById("modal").setAttribute("style", "display:none");  
+  document.getElementById("modal").setAttribute("style", "display:none");
 }
+
+function onRecieveSceneTransition(transitionInfo) {
+  if (transitionInfo != null) {
+    sceneTransLerpTime = transitionInfo.sceneTransLerpTime;
+    sceneTransDirection = transitionInfo.sceneTransDirection;
+    sceneTransStart = millis() - transitionInfo.sceneTransStart;
+    sceneTransition = true;
+  }
+}
+
+function broadcastSceneTransition() {
+  let transitionInfo = {
+    sceneTransDirection: sceneTransDirection,
+    sceneTransLerpTime: sceneTransLerpTime,
+    sceneTransStart: millis() - sceneTransStart
+  };
+  socket.emit('sceneTransition', transitionInfo);
+}
+
+
+function displayFPS() {
+  frameTimes.push(deltaTime);
+  if (millis() - timeCounter > 15000) {
+    averageFps = frameTimes.reduce((accumulator, currentValue) => accumulator + currentValue, 0) / frameTimes.length;
+    frameTimes = [];
+    timeCounter = millis();
+  }
+
+  textSize(16);
+  if (averageFps > 0) {
+    text((1000 / averageFps).toFixed(1), 15 - width / 2, 30 - height / 2);
+  }
+  else {
+    text((1000 / deltaTime).toFixed(1), 15 - width / 2, 30 - height / 2);
+  }
+}
+
+//console.log=sendErrorsToServer;
+//window.onerror = sendErrorsToServer;
+
+function sendErrorsToServer(event){
+socket.emit("error", event);
+}
+
+//window.addEventListener('error', function(event) {// console.log(event)});
+
+// window.addEventListener("error", (event) => {
+//   // console.log(event);
+// });
+
+// window.onerror = function(error, url, line) {
+//   // console.log(error);
+//   socket.emit('error', error, line)
+// };

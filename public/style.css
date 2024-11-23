@@ -232,5 +232,7 @@ canvas {
   transform: translate(-50%, -50%);
   border-radius: 5px;
   box-shadow: 0 4px 59px rgba(255, 255, 255, 0.2);
-
+  -webkit-user-select: none; /* Safari */
+  -ms-user-select: none; /* IE 10 and IE 11 */
+  user-select: none; /* Standard syntax */
 }

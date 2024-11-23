@@ -205,7 +205,8 @@ void main( )
   tex += col * electroIntensity;
   
   float ramp = pos.x;
-  
+ 
+
   // Modified colour is our output
   gl_FragColor = vec4(vec3(tex), 1.);
   //gl_FragColor = texture2D(filter_background, rotatePos)+smoothstep(0.95, .99, 1.-dist);

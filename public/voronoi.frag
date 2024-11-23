@@ -5,7 +5,7 @@ varying vec2 pos;
 uniform float millis;
 
 const int num_points = 225;
-uniform vec3 points[num_points];
+uniform vec2 points[num_points];
 
 uniform float transition;
 
@@ -236,69 +236,45 @@ vec2 hash2( vec2 p )
 	return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);
 }
 
-vec4 voronoi( in vec2 x )
+vec3 voronoi( in vec2 x )
 {
-    vec2 ip = floor(x);
-    vec2 fp = fract(x);
 
     //----------------------------------
     // first pass: regular voronoi
     //----------------------------------
 	vec2 mr = vec2(0);
   
-    vec3 pos3 = vec3(pos.xy, 0.);
+    //vec3 pos3 = vec3(pos.xy, 0.);
   
-    int point;
-    float multiplier;
+    //int point;
+    //float multiplier;
     // set very large number
     float maxDist = 1000.0;
-    float comparison;
+      vec2 ptInfo;
     for(int i = 0; i < 225; i ++)
     {
+        vec2 r = points[i] - pos;
+        float dmin = dot(r,r);
 
-        vec3 r = points[i] - pos3;
-        float dmin = dot(r.xy,r.xy);
-      
-      // convert to math
-      // essentially: if dmin<maxDist
-      comparison = step(dmin,maxDist);
-      // maxDist = dmin
-      maxDist = dmin*comparison+dmin*(1.-comparison);
-      // mr = r.xy
-      mr = r.xy*comparison+mr*(1.-comparison);
-      // multiplier = r.z
-      multiplier = r.z*comparison+multiplier*(1.-comparison);
-
-        // if( dmin<maxDist)
-        // {
-        //   maxDist = dmin;
-        //   mr = r.xy;
-        //   //point = i;
-        //   multiplier = r.z;
-        //   //multiplier = points[i].z;
-        // }
+        if( dmin<maxDist)
+        {
+          maxDist = dmin;
+          mr = r;
+          ptInfo = vec2(i,0);
+        }
     }
-  //multiplier = mr.z;
-      // // math to generate original position given point number
-  float numPerRow = pow(float(num_points), .5);
-  float p = multiplier;
-  // // get original point position
-  vec2 posOffset = vec2(mod(p, numPerRow)/(numPerRow-1.),                             floor(p/numPerRow)/(numPerRow-1.));
-  // // get offset of current position
-  posOffset = mr+pos-posOffset;
   //second pass
     maxDist = 1000.0;
-    for(int i = 0; i < num_points; i ++)
+    for(int i = 0; i < num_points; i++)
     {
-      vec2 r = points[i].xy - pos;
+      vec2 r = points[i] - pos;
       if( dot(mr-r,mr-r)>0.00001)
       {
         maxDist = min(maxDist, dot(0.5*(mr+r), normalize(r-mr)));
       }
     }
-  //multiplier = rand(pos);
   
-    return vec4(maxDist, 1., posOffset);
+    return vec3(maxDist, ptInfo);
 }
 
 
@@ -375,20 +351,39 @@ float easeInExpo(float x) {
 return (1.-(x - 0.)) * 0. + (x - 0.)* pow(2., 10. * x - 10.);
 }
 
+// float decayPattern(vec2 uv, vec2 center, float mag)
+//   {
+//   vec2 uv2 = uv + snoise(vec3(uv*10., 1.))*.2;
+//   float detail = snoise(uv.xyx*50.);
+//   float noiseScale = mix (1., 3., mag);
+//   float n = snoise(vec3(uv2*2.*noiseScale, 1.))*detail;
+//   uv2 = uv2+n*.2 -center;
+//   float d = 1.-dot(uv2, uv2);
+//   d -= (n)*.3;
+//   // float dist = smoothstep(mag, 0., d);
+//   // n = abs(n);
+//   // n = 1.-pow(n, dist*.4);
+//   return d;
+//   //return uv2.x;
+//   //return n*1.1;
+// }
+
 float decayPattern(vec2 uv, vec2 center, float mag)
   {
-  vec2 uv2 = uv + snoise(vec3(uv*10., 1.))*.2;
-  float detail = snoise(uv.xyx*50.);
-  float noiseScale = mix (1., 3., mag);
-  float n = snoise(vec3(uv2*2.*noiseScale, 1.))*detail;
-  uv2 = uv2+n*.2 -center;
-  float d = length(uv2);
-  d -= (n)*.3;
-  float dist = smoothstep(mag, 0., d);
-  n = abs(n);
-  n = 1.-pow(n, dist*.4);
-  
-  return n*1.1;
+  float noisePattern = noise(vec3(uv*5., 1.))*.2;
+  // make it craggly
+  float craggles = ((1.-pow(abs(noisePattern), .25))*2.);
+  //noisePattern += (1.-pow(abs(noisePattern), .05))-.1;
+  //n += noisePattern;
+  vec2 uv2 = uv + noisePattern;
+  //float d = dot(uv2-center, uv2-center);
+  float d = length(uv2-center);
+  d = smoothstep(mag, mag+1.*mag*craggles, d);
+  //return noisePattern;
+  return d;
+  //return 1.-d;
+  //return uv2.x;
+  //return n*1.1;
 }
 
 // level is [0,5], assumed to be a whole number
@@ -441,17 +436,20 @@ vec3 bandedRainbow(float d, float bands){
 
 void main() {
   
-  vec4 c = voronoi( 8.0*pos);
+  vec3 c = voronoi( 8.0*pos);
   // c.y contains two ints, one as the whole portion and one as the fraction
-  vec2 id = hash2(vec2(c.y-fract(c.y)));
-  //vec2 id = vec2(rand(vec2(c.y-fract(c.y))),
-                 //rand(vec2(c.y-fract(c.y)+10000.)));
+  //vec2 id = hash2(vec2(c.y));
+  vec3 id = vec3(rand(vec2(c.y/225.)),
+                 rand(vec2(c.y/225.)+10000.), 0.);
   
-  float pointActive = fract(c.y)*10.;
-  
-  vec2 posOffset = c.zw*.5;
+  //vec2 id = vec2(c.y/225.);
 
-  posOffset = vec2(0.);
+  //float pointActive = fract(c.y)*10.;
+  float pointActive = 1.;
+
+  //vec2 posOffset = c.zw*.5;
+
+  vec2 posOffset = vec2(0.);
   
   // // math to generate original position given point number
   // float numPerRow = pow(float(num_points), .5);
@@ -471,29 +469,43 @@ void main() {
   float kill = easeInExpo(transition);
   
   
-  vec3 bg = texture2D(background, fract(uv-posOffset)).xyz;
+  //vec3 bg = texture2D(background, fract(uv-posOffset)).xyz;
   // add a little shading to background
-  bg *= 1.-decay1*.5;
+  //bg *= 1.-decay1*.5;
   
+  vec3 bg = texture2D(background, pos).xyz;
+
   vec3 fg = nebulaTexture(pos);
   
-  vec3 col = vec3(mix(bg, fg, clamp(decay2+kill,0.,1.)));
+//float mask = 1.-smoothstep(transition, transition+10.*transition, dot(effectCenter-pos, effectCenter-pos));
+
+  float testTransition = sin(millis/1000.)*.5+.5;
+
+  float mask = decayPattern(pos, effectCenter, transition);
+
+  vec3 col = mix(bg, fg, 1.-mask);
+
+
+  //vec3 col = vec3(mix(bg, fg, clamp(decay2+kill,0.,1.)));
   //vec3 col = vec3(mix(bg, fg, pos.x));
   //vec3 col = fg;
   
-  //vec3 col = vec3(.5);
+  //col = vec3(.5);
   
-    //col = mix(col, id.xyx, .3);
+  //col = id.xzy;
+
+  // add random colors per cell
+  // col = mix(col, id.xyx, .1);
 
 
 	// isolines
-    // float offsetX = (sin(pos.x * 8. + millis/400.) + 1.)/ 2.;
-    // float offsetY = (sin(pos.y * 3. + millis/300.) + 1.)/ 2.;
-    // vec3 glow = vec3(offsetX, 0., offsetY);
-    // // glow
-    // col += mix( glow, vec3(0.,0.,0.), smoothstep( 0.01, 0.18, c.x+.12 ) )*transition;
-    // // lines
-    // col = mix(col, vec3(1.*transition), (1.-smoothstep( 0.0001, 0.002, c.x ))*.6 );
+    float offsetX = (sin(pos.x * 8. + millis/400.) + 1.)/ 2.;
+    float offsetY = (sin(pos.y * 3. + millis/300.) + 1.)/ 2.;
+    vec3 glow = vec3(offsetX, 0., offsetY);
+    // glow
+    col += mix( glow, vec3(0.,0.,0.), smoothstep( 0.01, 0.18, c.x+.12 ) )*transition;
+    // lines
+    col = mix(col, vec3(1.*transition), (1.-smoothstep( 0.0001, 0.002, c.x ))*.6 );
   
 //     float d = 1.-(c.x*20.);
   
@@ -505,7 +517,11 @@ void main() {
 //     col *= 1.-pointActive;
   
 //     col += rain*pointActive*.5;
-    
+
+  //col = vec3(c.x*10.);  
+
+  //col = vec3(mask);
+  //col = vec3(sin(millis/1000.)*.5+.5);
   
 	gl_FragColor = vec4(col,1.);
   //gl_FragColor = vec4(hash2(c.zz),1.,1.);

@@ -88,7 +88,8 @@ const findShortestPath = (graph, startNode, endNode) => {
 
 function generateDelaunayShortestPath(start, end) {
   // filter out every third point to get 2d array
-  let points2d = rawPts.filter((e, i) => (i+1) % 3 != 0);
+  //let points2d = rawPts.filter((e, i) => (i+1) % 3 != 0);
+  let points2d =rawPts;
   let neighbors = {};
   let delaunay = new Delaunator(points2d);
   //measure each length
