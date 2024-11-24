@@ -1,9 +1,3 @@
-window.onerror = function(message, url, lineNumber) { 
-  console.log("TEST!"); 
-  sendErrorsToServer(message);
-  //save error and send to server for example.
-  return true;
-}, true;  
 
 // TOOLTIPS
 // keyboard controls:
@@ -163,9 +157,11 @@ async function getImages() {
   }
 }
 
+let storeImagePaths;
 
 function createImagePaths(imageNames) {
-  imageNames = imageNames.filter(file => file.endsWith('.png'));
+  imageNames = imageNames.filter(file => file.endsWith('.png')|file.endsWith('.webm'));
+  let webmRegex = new RegExp("\\.webm$");
   // create and scatter sprites
   for (let i = 0; i < imageNames.length; i++) {
     let imagePath = "images/sprites/player/" + imageNames[i];
@@ -180,7 +176,19 @@ function createImagePaths(imageNames) {
         id = i;
       }
     }
-    sprites.push(new Sprite(imagePath, createVector(x, y), id, loadImage(imagePath)));
+    let imageObject;
+    if (!webmRegex.test(imagePath)){
+      imageObject = loadImage(imagePath);
+    }
+    else{
+      console.log("loaded video!!");
+      imageObject = createVideo(imagePath);
+      imageObject.muted=false;
+      imageObject.play();
+      imageObject.loop();
+      //imageObject.hide();
+    }
+    sprites.push(new Sprite(imagePath, createVector(x, y), id, imageObject));
   }
   socket.emit("requestSprites");
 }
@@ -1233,3 +1241,6 @@ socket.emit("error", event);
 //   // console.log(error);
 //   socket.emit('error', error, line)
 // };
+new p5();
+window.setup = setup;
+window.draw  = draw;
