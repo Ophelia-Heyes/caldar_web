@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+  <link rel="icon" type="image/x-icon" href="/images/drone_favicon.png">
   <title>Caldar Web</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/p5.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/addons/p5.sound.min.js"></script>
@@ -26,15 +26,23 @@
       </div>
     </div>
   </div> -->
+  <div id="canvas-container" class="canvas-container"></div>
   <div class="container" id="modal">
     <h2 id="sprite-modal-title" class="sprite-modal-title">Choose Your Tokens</h1>
     <table class="image-container">
       <tr id="image-container">
     </table>
-    <button id="modal-button" class="modal-button" onclick="submitChoices()">OK</button>
+    <button id="modal-button" class="modal-button" onclick="loadP5();submitChoices();
+    document.getElementById('modal').style.visibility='hidden'">OK</button>
+  </div>
+  <div>
+<!--             <input accept=".json" type="file" id="upload" onchange="handleReadFile()"> -->
   </div>
   <script src="utilities.js"></script>
-  <script src="sketch.js"></script>
+  <script src="index.js"></script>
+  <script src="get_P5.js"></script>
+  <!-- <script src="sketch.js"></script> -->
 </body>
 
 </html>
+

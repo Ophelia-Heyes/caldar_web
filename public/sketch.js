@@ -15,6 +15,8 @@
 voronoiShaderActive = true;
 effectsShadingActive = true;
 
+defaultCanvasSize = 400;
+
 let displaceColors;
 
 // average fps
@@ -24,8 +26,11 @@ timeCounter = 0;
 
 totalBytesSent = 0;
 
-let imageContainer = document.getElementById('image-container');
-let buttons = {};
+let canvasContainer = document.getElementById("canvas-container");
+// let imageContainer = document.getElementById('image-container');
+// let buttons = {};
+
+let browser;
 
 
 // Effect Controls
@@ -147,10 +152,18 @@ function preload() {
 async function getImages() {
   let files;
 
+  if (browser=="Safari"){
+    try {
+      const response = fetch("/safariImages/");
+      files = await response;
+      return files.json();
+    } catch (err) {
+    }
+  }
+
   try {
-    const response = fetch("/images");
+    const response = fetch("/images/");
     files = await response;
-    // files is now an array of file names, do what you want with that (create <img> tags, etc.)
     return files.json();
   } catch (err) {
     // console.error(err)
@@ -160,11 +173,13 @@ async function getImages() {
 let storeImagePaths;
 
 function createImagePaths(imageNames) {
-  imageNames = imageNames.filter(file => file.endsWith('.png')|file.endsWith('.webm'));
-  let webmRegex = new RegExp("\\.webm$");
+  imageNames = imageNames.filter(file => file.endsWith('.png')||file.endsWith('.webm')||file.endsWith('.mov'));
+  let pngRegex = new RegExp("\\.png$");
+  let directory = (browser=="Safari") ? "images/sprites/safari/" : "images/sprites/player/";
+  console.log("directory: " + directory);
   // create and scatter sprites
   for (let i = 0; i < imageNames.length; i++) {
-    let imagePath = "images/sprites/player/" + imageNames[i];
+    let imagePath = directory + imageNames[i];
     x = random(width) - (width / 2);
     y = random(height) - (height / 2);
     maxDist = 100000;
@@ -177,7 +192,7 @@ function createImagePaths(imageNames) {
       }
     }
     let imageObject;
-    if (!webmRegex.test(imagePath)){
+    if (pngRegex.test(imagePath)){
       imageObject = loadImage(imagePath);
     }
     else{
@@ -186,7 +201,7 @@ function createImagePaths(imageNames) {
       imageObject.muted=false;
       imageObject.play();
       imageObject.loop();
-      //imageObject.hide();
+      imageObject.hide();
     }
     sprites.push(new Sprite(imagePath, createVector(x, y), id, imageObject));
   }
@@ -194,12 +209,38 @@ function createImagePaths(imageNames) {
 }
 
 function createSprites() {
-  getImages().then(result => { createImagePaths(result), displayImages(result) });
+  getImages().then(result => { createImagePaths(result)
+    // , displayImages(result)
+  });
 }
 
+function onResizeCanvas(){
+  //console.log(canvasResizeSlider.value());
+  resizeCanvas(canvasResizeSlider.value(), canvasResizeSlider.value());
+}
+
+function onResizeSlider(){
+  canvasSliderValue.html("Canvas Size: "+canvasResizeSlider.value());
+}
 
 function setup() {
-  createCanvas(400, 400, WEBGL);
+  if (!userIsDM){
+    submitChoices();
+  }
+  browser = navigator.saysWho[0];
+
+  canvasContainer = document.getElementById("canvas-container");
+  let canvas = createCanvas(defaultCanvasSize, defaultCanvasSize, WEBGL);
+  canvas.parent("canvas-container");
+  canvasResizeSlider = createSlider(100,1000,defaultCanvasSize,100);
+  canvasResizeSlider.parent("canvas-container");
+  canvasResizeSlider.mouseReleased(onResizeCanvas);
+  canvasResizeSlider.class("resize-slider");
+  canvasSliderValue = createDiv();
+  canvasSliderValue.parent("canvas-container");
+  onResizeSlider();
+  canvasResizeSlider.input(onResizeSlider);
+  
   textFont(font);
   textSize(12);
   handleCreateUI();
@@ -285,7 +326,7 @@ function draw() {
   // draw points
   for (let i = 0; i < numPoints; i++) {
     circle((rawPts[i * 2] * width) - width / 2,
-      (rawPts[i * 2 + 1] * width) - width / 2, 3);
+      (rawPts[i * 2 + 1] * width) - width / 2, Math.max(1, width*.006));
   }
 
   // draw sprites
@@ -340,6 +381,7 @@ function keyPressed() {
       // test case
       case "b":
         broadcastPoints();
+      break;
       case "q":
         // handle opening rift
         sceneTransDirection = !sceneTransDirection;
@@ -920,8 +962,10 @@ function handleSpriteClick() {
   }
   // change for list of userControlled sprites
   else {
+    console.log("user controlled length:"+userControlled.length)
     for (let i = userControlled.length - 1; i >= 0; i--) {
       let sprite = sprites[userControlled[i]];
+      console.log(sprite);
       if (mouseInCircle(sprite.pos, dragRadius)) {
         activeSpritePoint = userControlled[i];
       }
@@ -945,7 +989,8 @@ function handleStartMoveMode() {
     movePt = mouseNearPoint();
     moveEffect = new Effect(cloneVectorArray(points), movePointsEffect, [points[movePt].copy(),
     createVector(mouseX / width, mouseY / width)], 1, .5, .25, easeInSine, false);
-    pushToActiveEffects(moveEffect);
+    //pushToActiveEffects(moveEffect);
+    activeEffects.push(moveEffect);
   }
   if (mouseButton == 'right') {
     if (moveEffect != null) {
@@ -962,6 +1007,7 @@ function handleDragMoveMode() {
   if (mouseButton == 'left') {
     moveEffect.center[1].x = mouseX / width;
     moveEffect.center[1].y = mouseY / height;
+    broadcastPoints();
   }
 }
 
@@ -978,7 +1024,8 @@ function handleStartLineMode() {
     lineEffect = new Effect(cloneVectorArray(points), lineAttractEffect,
       [createVector(mouseX / width, mouseY / height), createVector(mouseX / width, mouseY / height)],
       1., .5, .25, easeInSine, false);
-    pushToActiveEffects(lineEffect);
+    activeEffects.push(lineEffect);  
+    //pushToActiveEffects(lineEffect);
     // console.log(activeEffects);
   }
   if (mouseButton == 'right') {
@@ -996,6 +1043,7 @@ function handleDragLineMode() {
   if (mouseButton == 'left') {
     lineEffect.center[1].x = mouseX / width;
     lineEffect.center[1].y = mouseY / height;
+    broadcastPoints();
   }
 }
 
@@ -1139,14 +1187,17 @@ function generatePointGrid() {
 // html
 
 function displayImages(imageNames) {
-  imageNames = imageNames.filter(file => file.endsWith('.png'));
+  imageNames.filter(file => file.endsWith('.png')||file.endsWith('.webm')||file.endsWith('.mov'));
+  let directory = (browser=="Safari") ? "images/sprites/safari/" : "images/sprites/player/";
   if (!userIsDM) {
     // console.log("not dm");
     for (let index = 0; index < imageNames.length; index++) {
-      createSpriteElement("images/sprites/player/" + imageNames[index]);
+      createSpriteElement(directory + imageNames[index]);
     }
   }
 }
+
+
 
 function createSpriteElement(imageName) {
   buttons[imageName] = false;
@@ -1157,12 +1208,25 @@ function createSpriteElement(imageName) {
   let imageButtonLabel = document.createElement("label");
   imageButton.setAttribute("type", "checkbox");
   imageButton.setAttribute("onclick", "checkMark(this)");
+  //imageButton.setAttribute("checked", false);
   imageButton.setAttribute("id", imageName);
   imageButtonLabel.setAttribute("for", imageName);
   imageButtonParent.appendChild(imageButton);
   imageButtonParent.appendChild(imageButtonLabel);
   imageButtonLabel.setAttribute("class", "sprite-border");
-  let image = document.createElement('img');
+  let image;
+  if(imageName.endsWith('.webm')||imageName.endsWith('.mov')){
+      image = document.createElement('video');
+      image.preload = true;
+      image.muted = true;
+      image.loop = true;
+      image.playsInline = true;
+      image.autoplay = true;
+  }
+  else{
+      image = document.createElement('img');
+  }
+  //let image = document.createElement('img');
   imageButtonLabel.appendChild(image);
   const imageTag = imageName;
   image.src = imageTag;
@@ -1175,16 +1239,19 @@ function checkMark(button) {
 }
 
 function submitChoices() {
+  console.log("choices submitted!");
+  console.log(spriteButtons);
   // submit which sprites the player has selected to control
   userControlled = [];
   let index = 0;
-  for (const [key, value] of Object.entries(buttons)) {
+  for (let [key, value] of Object.entries(spriteButtons)) {
+    console.log(value);
     if (value) {
       userControlled.push(index);
     }
     index++;
   }
-
+  console.log(userControlled);
   document.getElementById("modal").setAttribute("style", "display:none");
 }
 
@@ -1231,16 +1298,41 @@ function sendErrorsToServer(event){
 socket.emit("error", event);
 }
 
-//window.addEventListener('error', function(event) {// console.log(event)});
+navigator.saysWho = (() => {
+  const { userAgent } = navigator
+  let match = userAgent.match(/(opera|chrome|safari|firefox|msie|trident(?=\/))\/?\s*(\d+)/i) || []
+  let temp
 
-// window.addEventListener("error", (event) => {
-//   // console.log(event);
-// });
+  if (/trident/i.test(match[1])) {
+    temp = /\brv[ :]+(\d+)/g.exec(userAgent) || []
 
-// window.onerror = function(error, url, line) {
-//   // console.log(error);
-//   socket.emit('error', error, line)
-// };
+    return `IE ${temp[1] || ''}`
+  }
+
+  if (match[1] === 'Chrome') {
+    temp = userAgent.match(/\b(OPR|Edge)\/(\d+)/)
+
+    if (temp !== null) {
+      return temp.slice(1).join(' ').replace('OPR', 'Opera')
+    }
+
+    temp = userAgent.match(/\b(Edg)\/(\d+)/)
+
+    if (temp !== null) {
+      return temp.slice(1).join(' ').replace('Edg', 'Edge (Chromium)')
+    }
+  }
+
+  match = match[2] ? [ match[1], match[2] ] : [ navigator.appName, navigator.appVersion, '-?' ]
+  temp = userAgent.match(/version\/(\d+)/i)
+
+  if (temp !== null) {
+    match.splice(1, 1, temp[1])
+  }
+
+  return match
+})();
+
 new p5();
 window.setup = setup;
 window.draw  = draw;

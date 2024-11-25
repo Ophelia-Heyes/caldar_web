@@ -23,6 +23,7 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }));
 
 app.get('/images', async (req, res) => {
+    console.log(req);
     //res.sendFile(path.join(__dirname, 'public', 'index.html'));
     console.log("test");
     // try and serve images from directory
@@ -34,6 +35,18 @@ app.get('/images', async (req, res) => {
     }
 });
 
+app.get('/safariImages', async (req, res) => {
+    console.log(req);
+    //res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    console.log("test");
+    // try and serve images from directory
+    try {
+        const files = await promises.readdir("public/images/sprites/safari/");
+        res.status(200).json(files);
+    } catch (err) {
+        res.status(500).json(err);
+    }
+});
 console.log("socket running");
 var socket = require('socket.io');
 var io = socket(server);
@@ -112,3 +125,23 @@ function newConnection(socket) {
         io.to(socket.id).emit('requestPoints', points);
     }
 }
+
+
+
+async function getDirs(){
+const testFileDir = await promises.readdir("public/images/");
+return testFileDir
+}
+
+function logDirs(dirs){
+    let re = new RegExp("\\..*$")
+    // get only directories
+    dirs = dirs.filter(file => !re.test(file));
+    console.log(dirs);
+}
+
+function getAndLogDirs() {
+    getDirs().then(result => {logDirs(result)});
+}
+
+getAndLogDirs();

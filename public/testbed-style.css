@@ -1,0 +1,83 @@
+#mydiv {
+    position: absolute;
+    top: 1%;
+    left: 1%;
+    z-index: 9;
+    background-color: #555555;
+    border-radius: 10px;
+    text-align: center;
+    -webkit-user-select: none; /* Safari */
+    -ms-user-select: none; /* IE 10 and IE 11 */
+    user-select: none; /* Standard syntax */
+    cursor: default;
+}
+
+#mydivheader {
+    padding: 10px;
+    cursor: move;
+    z-index: 10;
+    /* background-color: #444444; */
+    border-radius: 5px;
+    font-family: "kallisto", sans-serif;
+    font-weight: 500;
+    font-style: normal;
+    font-variant: small-caps;
+    color: #ffffff;
+    display:inline-block;
+}
+
+.mydivtitle{
+    vertical-align: text-bottom;
+    /* vertical-align: middle; */
+}
+
+.custom-checkbox {
+    position: absolute;
+    z-index: -1;
+    opacity: 0;
+}
+
+.custom-checkbox + label {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  .custom-checkbox + label::before {
+    content: '';
+    /* display:block; */
+   display: inline-block;
+    width: 1em;
+    height: 1em;
+    /* flex-shrink: 0;
+    flex-grow: 0; */
+    border: 1px solid #c3c3c3;
+    border-radius: 0.25em;
+    margin-right: 0.5em;
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: 100% 100%;
+    background-image: url("images/icons/chevron-up-svgrepo-com.svg");
+  }
+
+  .custom-checkbox:checked + label::before {
+    background-image: url("images/icons/chevron-down-svgrepo-com.svg");
+  }
+
+
+
+
+
+p {
+    font-family: "franklin-gothic-condensed", sans-serif;
+    font-size: 16px;
+    font-weight: 400;
+    font-style: normal;
+    text-align: center;
+    color: #ffffff;
+    border: none;
+
+}
