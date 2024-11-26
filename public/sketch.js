@@ -350,7 +350,7 @@ function draw() {
     fill(80);
     rect(-width / 2, -height / 2, width, height);
   }
-  fill(255);
+  fill(255,255,255,125);
 
 
   // draw points
@@ -456,7 +456,7 @@ function keyPressed() {
       case "a":
         // "attack mode"
         // // console.log([sprites[0].pos.x/width+1, sprites[0].pos.y/height+1]);
-        pushToActiveEffects(new Effect(points, rippleEffect, [sprites[0].pos.x / width + .5, sprites[0].pos.y / height + .5], 0.2, 10, 1, easeInSine));
+        pushToActiveEffects(new Effect(points, rippleEffect, [sprites[sprites.length-1].pos.x / width + .5, sprites[sprites.length-1].pos.y / height + .5], 0.2, 10, 1, easeInSine));
         break;
       case "c":
         if (activeRelax != null) {
