@@ -14,6 +14,8 @@
 // toggle for testing
 voronoiShaderActive = true;
 effectsShadingActive = true;
+let backgroundToggle;
+let filterToggle;
 
 defaultCanvasSize = 400;
 
@@ -27,8 +29,6 @@ timeCounter = 0;
 totalBytesSent = 0;
 
 let canvasContainer = document.getElementById("canvas-container");
-// let imageContainer = document.getElementById('image-container');
-// let buttons = {};
 
 let browser;
 
@@ -69,11 +69,7 @@ const numPoints = numPerRow * numPerRow,
   // list of vec2
   points = new Array(numPoints).fill(null);
 
-// setup sprites
-// const spriteNames = ['void', 'drone', 'emma', 'ev', 'rhi',
-//   'sian', 'stephie'];
 sprites = [];
-//spriteImages = [];
 dragRadius = 40;
 let activeSpritePoint = null;
 
@@ -210,17 +206,32 @@ function createImagePaths(imageNames) {
 
 function createSprites() {
   getImages().then(result => { createImagePaths(result)
-    // , displayImages(result)
   });
 }
 
 function onResizeCanvas(){
-  //console.log(canvasResizeSlider.value());
-  resizeCanvas(canvasResizeSlider.value(), canvasResizeSlider.value());
+  // don't let screen get larger than 80% window size
+  let resizeValue = Math.min(Math.min(window.innerWidth, window.innerHeight)*.8, canvasResizeSlider.value);
+  resizeCanvas(resizeValue, resizeValue);
 }
 
 function onResizeSlider(){
-  canvasSliderValue.html("Canvas Size: "+canvasResizeSlider.value());
+  // display canvas size
+  // canvasSliderValue.html("Canvas Size: "+canvasResizeSlider.value()+"px");
+}
+
+// change for more general setup function?
+function setupShaderToggles(){
+  backgroundToggle = document.getElementById("background-effects-checkbox");
+  filterToggle = document.getElementById("screenspace-effects-checkbox");
+  backgroundToggle.addEventListener("change", onUpdateShaderToggles);
+  filterToggle.addEventListener("change", onUpdateShaderToggles);
+}
+
+function onUpdateShaderToggles(){
+  console.log("called updateShaderToggles");
+  voronoiShaderActive=backgroundToggle.checked;
+  effectsShadingActive=filterToggle.checked;
 }
 
 function setup() {
@@ -232,14 +243,19 @@ function setup() {
   canvasContainer = document.getElementById("canvas-container");
   let canvas = createCanvas(defaultCanvasSize, defaultCanvasSize, WEBGL);
   canvas.parent("canvas-container");
-  canvasResizeSlider = createSlider(100,1000,defaultCanvasSize,100);
-  canvasResizeSlider.parent("canvas-container");
-  canvasResizeSlider.mouseReleased(onResizeCanvas);
-  canvasResizeSlider.class("resize-slider");
-  canvasSliderValue = createDiv();
-  canvasSliderValue.parent("canvas-container");
-  onResizeSlider();
-  canvasResizeSlider.input(onResizeSlider);
+  canvasResizeSlider = document.getElementById("resize-slider");
+  resizeSlider.addEventListener("change", onResizeCanvas);
+  
+  setupShaderToggles();
+
+  // canvasResizeSlider = createSlider(100,1000,defaultCanvasSize,100);
+  // canvasResizeSlider.parent("canvas-container");
+  // canvasResizeSlider.class("resize-slider");
+  // canvasSliderValue = createDiv();
+  // canvasSliderValue.parent("canvas-container");
+  // canvasSliderValue.class("resize-slider-text");
+  // onResizeSlider();
+  // canvasResizeSlider.input(onResizeSlider);
   
   textFont(font);
   textSize(12);
@@ -514,7 +530,7 @@ function updatePoints() {
     // set raw points to send to the shader
     for (let i = 0; i < points.length; i++) {
       p = points[i];
-      rawPts[i * 2] = p.x;
+      rawPts[i * 2] = setInsignificantBit(p.x, p.z);
       rawPts[(i * 2) + 1] = p.y;
       // third term is for voronoi effects
       //rawPts[(i * 3) + 2] = p.z;
@@ -962,10 +978,8 @@ function handleSpriteClick() {
   }
   // change for list of userControlled sprites
   else {
-    console.log("user controlled length:"+userControlled.length)
     for (let i = userControlled.length - 1; i >= 0; i--) {
       let sprite = sprites[userControlled[i]];
-      console.log(sprite);
       if (mouseInCircle(sprite.pos, dragRadius)) {
         activeSpritePoint = userControlled[i];
       }
@@ -1076,6 +1090,7 @@ function handleCreateUI() {
   buttonDiv.style("display", "flex");
   buttonDiv.style("justify-content", "space-evenly");
   //// console.log(modesArray);
+  if (userIsDM){
   for (let [index, value] of Object.entries(modes).entries()) {
     let mode = value[1];
     let button = createButton(mode.name);
@@ -1083,14 +1098,25 @@ function handleCreateUI() {
     button.style("flex-grow", "1");
     button.mousePressed(() => mode.toggleMode());
     buttonDiv.child(button);
+    }
   }
 
 }
 
 // IO
 
-function handleReadFile(file) {
-  data = file.data;
+function onReaderLoad(event){
+  //console.log(event.target.result);
+  var obj = JSON.parse(event.target.result);
+  //alert_data(obj.name, obj.family);
+}
+
+function handleReadFile() {
+  data = document.getElementById("file-input");
+  var reader = new FileReader();
+  reader.onload = onReaderLoad;
+  data=reader.readAsText(data.files[0]);
+  console.log(data);
   // // console.log(data);
   for (let i = 0; i < points.length; i++) {
     points[i].x = data.points[i].x;
@@ -1134,6 +1160,7 @@ function compressPoints() {
     let pt = points[index];
     compressedPts.push(pt.x);
     compressedPts.push(pt.y);
+    compressedPts.push(pt.z);
   }
   //// console.log(compressedPts.length);
   return compressedPts;
@@ -1141,9 +1168,10 @@ function compressPoints() {
 
 function uncompressPoints(compressedPts) {
   for (let index = 0; index < points.length; index++) {
-    let x = compressedPts[index * 2];
-    let y = compressedPts[index * 2 + 1];
-    points[index] = createVector(x, y);
+    let x = compressedPts[index * 3];
+    let y = compressedPts[index * 3 + 1];
+    let z = compressedPts[index * 3 + 2];
+    points[index] = createVector(x, y, z);
   }
 }
 
@@ -1180,7 +1208,7 @@ function generatePointGrid() {
   for (let i = 0; i < numPoints; i++) {
     x = ((i % numPerRow) / (numPerRow - 1));
     y = (Math.floor(i / numPerRow) / (numPerRow - 1));
-    points[i] = (createVector(x, y));
+    points[i] = (createVector(x, y, 1));
   }
 }
 

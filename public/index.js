@@ -3,7 +3,7 @@
 // const serveIndex = require('serve-index'); 
 // test = app.use('/images/sprites', serveIndex(path.join(__dirname, '/images')));
 
-let imageContainer = document.getElementById('image-container');
+let imageContainer = document.getElementById('sprite-container');
 let spriteButtons = {};
 
 

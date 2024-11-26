@@ -7,7 +7,7 @@ const port = process.env.PORT || 10000;
 const promises = require('fs').promises;
 
 // data vars
-var points = new Array(15 * 15 * 2);
+var points = new Array(15 * 15 * 3);
 var pointsStored = false;
 var sprites;
 var storedTransition;

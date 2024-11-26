@@ -140,3 +140,13 @@ function easeInSine(x)
 {
   return 1 - Math.cos((x * Math.PI)/2);
 }
+
+function setInsignificantBit(num, val){
+  let mult = 1000;
+  num *= mult;
+  num = Math.floor(num);
+  num *= 10;
+  num += val;
+  num /= mult*10;
+  return num
+}

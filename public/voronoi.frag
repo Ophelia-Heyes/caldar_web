@@ -260,7 +260,8 @@ vec3 voronoi( in vec2 x )
         {
           maxDist = dmin;
           mr = r;
-          ptInfo = vec2(i,0);
+          ptInfo = vec2(points[i].x, 0);
+          //ptInfo = vec2(i,0);
         }
     }
   //second pass
@@ -485,6 +486,10 @@ void main() {
 
   vec3 col = mix(bg, fg, 1.-mask);
 
+  float killMask = mod(floor(mod(c.y*10000., 2.)+.5), 2.);
+
+  col *= killMask;
+
 
   //vec3 col = vec3(mix(bg, fg, clamp(decay2+kill,0.,1.)));
   //vec3 col = vec3(mix(bg, fg, pos.x));
@@ -507,21 +512,23 @@ void main() {
     // lines
     col = mix(col, vec3(1.*transition), (1.-smoothstep( 0.0001, 0.002, c.x ))*.6 );
   
-//     float d = 1.-(c.x*20.);
+float d = 1.-(c.x*20.);
   
-//     vec3 rain = bandedRainbow(1.-(d), 10.);
-//     rain *= easeInSine(d);
+vec3 rain = bandedRainbow(1.-(d), 10.);
+     rain *= easeInSine(d);
   
-//   /// temporary!!! for testing!! fuck me!!
-//     //float selectPt = float(c.z-50.==0.);
-//     col *= 1.-pointActive;
+  /// temporary!!! for testing!! fuck me!!
+    //float selectPt = float(c.z-50.==0.);
+    // col *= 1.-pointActive;
   
-//     col += rain*pointActive*.5;
+    // col += rain*pointActive*.5;
 
-  //col = vec3(c.x*10.);  
+  col += rain*(1.-killMask)*.5;
 
-  //col = vec3(mask);
-  //col = vec3(sin(millis/1000.)*.5+.5);
+  // col = vec3(c.x*10.);  
+
+  // col = vec3(mask);
+  // col = vec3(sin(millis/1000.)*.5+.5);
   
 	gl_FragColor = vec4(col,1.);
   //gl_FragColor = vec4(hash2(c.zz),1.,1.);
