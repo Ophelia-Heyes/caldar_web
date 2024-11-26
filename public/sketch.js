@@ -901,6 +901,7 @@ function mouseReleased() {
   if (activeSpritePoint != null) {
     snapSprite();
   }
+  sendSpritePositionUpdates();
   activeSpritePoint = null;
   //voronoiShader.setUniform("clicked", 0.);
   if (lineModeActive) {
@@ -928,7 +929,7 @@ function updateSpritePosition() {
       }
     }
   }
-  if (anyUpdated) {
+  if (anyUpdated && activeSpritePoint != null) {
     // console.log("updated!!!");
     sendSpritePositionUpdates();
   }
