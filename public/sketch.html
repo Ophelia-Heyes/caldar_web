@@ -14,65 +14,16 @@
   <link rel="stylesheet" type="text/css" href="style.css">
     <meta charset="utf-8" />
     <script src="https://unpkg.com/delaunator@5.0.0/delaunator.min.js"></script>
+    <script>
+      $(function(){
+        $("#settings-panel").load("settings-panel.html"); 
+      });
+      </script> 
   </head>
   <body>
     <main>
-  <!-- Settings Panel -->
-  <div class="container-xl draggable-div">
-    <!-- Include a header DIV with the same name as the draggable DIV, followed by "header" -->
-    <div id="" class="pull-left draggable-div-header"><input class="custom-checkbox" id="myCheckbox" type="checkbox"
-        data-toggle="collapse" href="#collapse1" /><label for="myCheckbox">
-      </label><span class="draggable-div-title">Settings</span></div>
-    <div class="panel-group dark-panel">
-      <div class="panel panel-default w-200 dark-panel">
-        <!-- <div class="panel-heading">
-                        <h4 class="panel-title">
-                          <a data-toggle="collapse" href="#collapse1">Collapsible panel</a>
-                        </h4>
-                      </div> -->
-        <div id="collapse1" class="panel-collapse dark-panel collapse">
-          <br>
-          <div class="row">
-            <div class="panel-title">Screen Size</div>
-
-            <input id="resize-slider" type="range" class="settings-panel-slider" value="500" min="100" max="1000"
-              step="100"></input>
-            <div id="resize-slider-value" class="col-xs-4 text-start slider-value">500px</div>
-          </div>
-          <div class="row">
-            <div class="panel-title">Performance</div>
-          </div>
-          <div class="row">
-            <input id="background-effects-checkbox" type="checkbox" class="settings-panel-checkbox" checked />
-            <label for="background-effects-checkbox" class="settings-panel-checkbox-label">Background Effects</label>
-          </div>
-          <div class="row">
-            <input id="screenspace-effects-checkbox" type="checkbox" class="settings-panel-checkbox" checked />
-            <label for="screenspace-effects-checkbox" class="settings-panel-checkbox-label">Screenspace Effects</label>
-          </div>
-          <div class="row">
-            <input id="simplify-tokens-checkbox" type="checkbox" class="settings-panel-checkbox" />
-            <label for="simplify-tokens-checkbox" class="settings-panel-checkbox-label">Simplify Tokens</label>
-          </div>
-          <div class="row">
-            <div class="panel-title">Player Character</div>
-          </div>
-          <div class="row">
-            <button type="button" class="settings-panel-button" onclick="console.log('opening token select'); document.getElementById('modal').style.display='block'">Select Tokens</button>
-          </div>
-          <div class="row">
-            <button type="button" class="settings-panel-button">Change Display Name</button>
-          </div>
-          <div class="row">
-            <div class="panel-title">Misc</div>
-          </div>
-          <div class="row">
-            <button id="drone-button" type="button" class="settings-panel-button" onclick="unhideFriend()">Activate Friend</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+    <!-- Settings Panel -->
+    <div id="settings-panel"></div>
 
   <div class="container-xl draggable-div" style="left:22%;">
     <!-- Include a header DIV with the same name as the draggable DIV, followed by "header" -->

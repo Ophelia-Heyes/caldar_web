@@ -17,11 +17,13 @@ effectsShadingActive = true;
 let backgroundToggle;
 let filterToggle;
 
+
 defaultCanvasSize = 400;
 
 let displaceColors;
 
 // average fps
+let showFPSActive = false;
 averageFps = 0;
 frameTimes = [];
 timeCounter = 0;
@@ -201,6 +203,10 @@ function createImagePaths(imageNames) {
     }
     sprites.push(new Sprite(imagePath, createVector(x, y), id, imageObject));
   }
+  // dumbass hardcoded add enemy
+  let enemyImage = loadImage("images/sprites/dm/void_token.png");
+  sprites.push(new Sprite("images/sprites/dm/void_token.png", createVector(.5,.5), 112, enemyImage));
+  
   socket.emit("requestSprites");
 }
 
@@ -222,8 +228,10 @@ function onResizeSlider(){
 
 // change for more general setup function?
 function setupShaderToggles(){
+  showFPSToggle = document.getElementById("fps-checkbox");
   backgroundToggle = document.getElementById("background-effects-checkbox");
   filterToggle = document.getElementById("screenspace-effects-checkbox");
+  showFPSToggle.addEventListener("change", onUpdateShaderToggles);
   backgroundToggle.addEventListener("change", onUpdateShaderToggles);
   filterToggle.addEventListener("change", onUpdateShaderToggles);
 }
@@ -232,12 +240,14 @@ function onUpdateShaderToggles(){
   console.log("called updateShaderToggles");
   voronoiShaderActive=backgroundToggle.checked;
   effectsShadingActive=filterToggle.checked;
+  showFPSActive=showFPSToggle.checked;
 }
 
 function setup() {
   if (!userIsDM){
     submitChoices();
   }
+  noiseSeed(0);
   browser = navigator.saysWho[0];
 
   canvasContainer = document.getElementById("canvas-container");
@@ -308,10 +318,14 @@ function draw() {
   // update shader variables
   //enemyPos = sprites[0].pos;
   // temp fix
-  enemyPos = createVector(0.5, 0.5);
-  voronoiShader.setUniform("effectCenter", [.5, .5]);
-  //voronoiShader.setUniform("effectCenter", [(enemyPos.x / width) + .5,
-  //(enemyPos.y / height) + .5]);
+  //enemyPos = createVector(0.5, 0.5);
+  if(sprites[sprites.length-1]){
+  enemyPos = sprites[sprites.length-1].pos;}
+  else{
+    enemyPos = createVector(0.5, 0.5);
+  }
+  //voronoiShader.setUniform("effectCenter", [.5, .5]);
+  voronoiShader.setUniform("effectCenter", [(enemyPos.x / width) + .5, (enemyPos.y / height) + .5]);
   voronoiShader.setUniform("background", backgroundImage);
   voronoiShader.setUniform("foreground", foregroundImage);
   voronoiShader.setUniform("points", rawPts);
@@ -373,7 +387,10 @@ function draw() {
   // frameTimes = [];
   // timeCounter = 0;
 
+  if (showFPSActive)
+  {
   displayFPS();
+  }
 
 
   updateModes();
@@ -415,6 +432,7 @@ function keyPressed() {
         break;
       case "t":
         // move point
+        console.log("moveMode");
         moveModeActive = !moveModeActive;
         break;
       case "r":
@@ -459,8 +477,9 @@ function keyPressed() {
 }
 
 function handleSceneTransition() {
+  let transitionTime = 10000;
   // allows for hotswapping direction while lerping
-  sceneTransLerpTime += (sceneTransDirection) ? deltaTime / 5000 : -deltaTime / 5000;
+  sceneTransLerpTime += (sceneTransDirection) ? deltaTime / transitionTime : -deltaTime / transitionTime;
   let lerpCheck = (sceneTransDirection) ? sceneTransLerpTime >= 1 : sceneTransLerpTime <= 0;
   if (lerpCheck) {
     sceneTransition = false;
@@ -562,9 +581,11 @@ function effectsManager() {
     }
     // if number of effects has gone to zero on this step,
     //broadcast results to ensure every user has the same state
+    if(userIsDM){
     if (activeEffects.length == 0) {
       // console.log(activeEffects.length);
       broadcastPoints();
+      }
     }
   }
 }
@@ -736,7 +757,7 @@ function rippleEffect(initPts, curPts, magnitude, lastTime, lerpTime, falloff, c
   return curPts;
 }
 
-function resetEffect(initPts, curPts, magnitude, lastTime, lerpTime, center) {
+function resetEffect(initPts, curPts, magnitude, lastTime, lerpTime, falloff, center) {
   for (let i = 0; i < numPoints; i++) {
     let p = createVector(initPts[i].x, initPts[i].y);
     let x = ((i % numPerRow) / (numPerRow - 1));
@@ -748,7 +769,7 @@ function resetEffect(initPts, curPts, magnitude, lastTime, lerpTime, center) {
   return curPts;
 }
 
-function noiseEffect(initPts, curPts, magnitude, lastTime, lerpTime, center) {
+function noiseEffect(initPts, curPts, magnitude, lastTime, lerpTime, falloff, center) {
   let multiplier = 100;
   for (let i = 0; i < numPoints; i++) {
     let p = createVector(initPts[i].x, initPts[i].y);
@@ -757,7 +778,7 @@ function noiseEffect(initPts, curPts, magnitude, lastTime, lerpTime, center) {
     n.add(p);
     p.lerp(n, easeInSine(lerpTime) * magnitude);
     curPts[i].x = p.x;
-    curPts[i].y = p.y
+    curPts[i].y = p.y;
   }
 }
 
@@ -770,6 +791,7 @@ function relaxEffect(initPts, curPts, magnitude, lastTime, lerpTime, center) {
     let p = createVector(initPts[i].x, initPts[i].y);
     for (let j = 0; j < numPoints; j++) {
       let jPt = points[j].copy();
+      jPt.z = 0;
       // relative offset
       jPt.sub(p);
       //unsure whether to remove current point //i!=j &&
@@ -896,6 +918,7 @@ function updateSpritePosition() {
       // don't update active sprite
       // get copy of point
       let pt = points[sprites[i].attachPoint].copy();
+      pt.z = 0;
       pt = pt.sub(.5, .5);
       pt = pt.mult(width, height);
       // // let dist = p5.Vector.sub(sprites[i].pos, pt).magSq();
@@ -939,7 +962,7 @@ function onReceiveSpritePositionUpdates(spriteUpdates) {
   if (spriteUpdates !== null) {
     // console.log("sprite updates:");
     // console.log(spriteUpdates);
-    for (let index = 0; index < spriteUpdates.length; index++) {
+    for (let index = 0; index < sprites.length; index++) {
       let sprite = sprites[index];
       let spriteUpdate = spriteUpdates[index];
       sprite.pos.x = spriteUpdate.pos[0];
@@ -948,7 +971,7 @@ function onReceiveSpritePositionUpdates(spriteUpdates) {
     }
   }
   else {
-    // console.log("recieved null sprites, sending local sprites");
+     console.log("recieved null sprites, sending local sprites");
     sendSpritePositionUpdates();
   }
 }
@@ -996,12 +1019,14 @@ function handleKillMode() {
 function handleDragKillMode() {
   let pt = mouseNearPoint();
   points[pt].z = dragKill;
+  broadcastPoints();
 }
 
 function handleStartMoveMode() {
   if (mouseButton == 'left') {
     movePt = mouseNearPoint();
-    moveEffect = new Effect(cloneVectorArray(points), movePointsEffect, [points[movePt].copy(),
+    movePt = createVector(points[movePt].x,points[movePt].y);
+    moveEffect = new Effect(cloneVectorArray(points), movePointsEffect, [movePt,
     createVector(mouseX / width, mouseY / width)], 1, .5, .25, easeInSine, false);
     //pushToActiveEffects(moveEffect);
     activeEffects.push(moveEffect);
@@ -1171,7 +1196,9 @@ function uncompressPoints(compressedPts) {
     let x = compressedPts[index * 3];
     let y = compressedPts[index * 3 + 1];
     let z = compressedPts[index * 3 + 2];
-    points[index] = createVector(x, y, z);
+    points[index].x =x;
+    points[index].y =y;
+    points[index].z =z;
   }
 }
 
